@@ -29,6 +29,7 @@ class ExpenseListScreen extends StatefulWidget {
 class _ExpenseListScreenState extends State<ExpenseListScreen> {
   List<dynamic> expenses = [];
   bool isLoading = true;
+  String? selectedCategory;
 
   @override
   void initState() {
@@ -51,13 +52,22 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
     await http.delete(Uri.parse('http://127.0.0.1:8000/expenses/$id'));
   }
 
+  List<dynamic> get filteredExpenses {
+    if (selectedCategory == null) return expenses;
+    return expenses.where((e) => e['kategorie'] == selectedCategory).toList();
+  }
+
+  List<String> get uniqueCategories {
+    return expenses.map((e) => e['kategorie'] as String).toSet().toList();
+  }
+
   double calculateTotal() {
-    return expenses.fold(0.0, (sum, e) => sum + (e['betrag'] as num).toDouble());
+    return filteredExpenses.fold(0.0, (sum, e) => sum + (e['betrag'] as num).toDouble());
   }
 
   Map<String, double> calculateCategorySums() {
     final Map<String, double> sums = {};
-    for (var expense in expenses) {
+    for (var expense in filteredExpenses) {
       final kategorie = expense['kategorie'] as String;
       final betrag = (expense['betrag'] as num).toDouble();
       sums[kategorie] = (sums[kategorie] ?? 0) + betrag;
@@ -97,6 +107,34 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
     );
   }
 
+  Widget buildCategoryFilter() {
+    return SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: const Text('Alle'),
+              selected: selectedCategory == null,
+              onSelected: (_) => setState(() => selectedCategory = null),
+            ),
+          ),
+          ...uniqueCategories.map((kategorie) => Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: Text(kategorie),
+                  selected: selectedCategory == kategorie,
+                  onSelected: (_) => setState(() => selectedCategory = kategorie),
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -105,12 +143,13 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
+                buildCategoryFilter(),
                 buildSummaryCard(),
                 Expanded(
                   child: ListView.builder(
-                    itemCount: expenses.length,
+                    itemCount: filteredExpenses.length,
                     itemBuilder: (context, index) {
-                      final expense = expenses[index];
+                      final expense = filteredExpenses[index];
                       return Dismissible(
                         key: Key(expense['id'].toString()),
                         direction: DismissDirection.endToStart,
@@ -121,13 +160,12 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
                           child: const Icon(Icons.delete, color: Colors.white),
                         ),
                         onDismissed: (direction) {
-                          final removedExpense = expenses[index];
                           setState(() {
-                            expenses.removeAt(index);
+                            expenses.removeWhere((e) => e['id'] == expense['id']);
                           });
-                          deleteExpense(removedExpense['id']);
+                          deleteExpense(expense['id']);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('${removedExpense['kategorie']} gelöscht')),
+                            SnackBar(content: Text('${expense['kategorie']} gelöscht')),
                           );
                         },
                         child: ListTile(
