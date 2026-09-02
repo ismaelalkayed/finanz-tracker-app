@@ -47,22 +47,99 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
     }
   }
 
+  Future<void> deleteExpense(int id) async {
+    await http.delete(Uri.parse('http://127.0.0.1:8000/expenses/$id'));
+  }
+
+  double calculateTotal() {
+    return expenses.fold(0.0, (sum, e) => sum + (e['betrag'] as num).toDouble());
+  }
+
+  Map<String, double> calculateCategorySums() {
+    final Map<String, double> sums = {};
+    for (var expense in expenses) {
+      final kategorie = expense['kategorie'] as String;
+      final betrag = (expense['betrag'] as num).toDouble();
+      sums[kategorie] = (sums[kategorie] ?? 0) + betrag;
+    }
+    return sums;
+  }
+
+  Widget buildSummaryCard() {
+    final total = calculateTotal();
+    final categorySums = calculateCategorySums();
+
+    return Card(
+      margin: const EdgeInsets.all(12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Gesamt: ${total.toStringAsFixed(2)} €',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            ...categorySums.entries.map((entry) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(entry.key),
+                      Text('${entry.value.toStringAsFixed(2)} €'),
+                    ],
+                  ),
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Meine Ausgaben')),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
-              itemCount: expenses.length,
-              itemBuilder: (context, index) {
-                final expense = expenses[index];
-                return ListTile(
-                  title: Text(expense['kategorie']),
-                  subtitle: Text(expense['notiz'] ?? ''),
-                  trailing: Text('${expense['betrag']} €'),
-                );
-              },
+          : Column(
+              children: [
+                buildSummaryCard(),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: expenses.length,
+                    itemBuilder: (context, index) {
+                      final expense = expenses[index];
+                      return Dismissible(
+                        key: Key(expense['id'].toString()),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          color: Colors.red,
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          child: const Icon(Icons.delete, color: Colors.white),
+                        ),
+                        onDismissed: (direction) {
+                          final removedExpense = expenses[index];
+                          setState(() {
+                            expenses.removeAt(index);
+                          });
+                          deleteExpense(removedExpense['id']);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('${removedExpense['kategorie']} gelöscht')),
+                          );
+                        },
+                        child: ListTile(
+                          title: Text(expense['kategorie']),
+                          subtitle: Text(expense['notiz'] ?? ''),
+                          trailing: Text('${expense['betrag']} €'),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
