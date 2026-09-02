@@ -1,3 +1,4 @@
+import 'config.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -39,7 +40,7 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
 
   Future<void> fetchExpenses() async {
     setState(() => isLoading = true);
-    final response = await http.get(Uri.parse('http://127.0.0.1:8000/expenses'));
+    final response = await http.get(Uri.parse('$apiBaseUrl/expenses'));
     if (response.statusCode == 200) {
       setState(() {
         expenses = jsonDecode(response.body);
@@ -49,7 +50,7 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
   }
 
   Future<void> deleteExpense(int id) async {
-    await http.delete(Uri.parse('http://127.0.0.1:8000/expenses/$id'));
+    await http.delete(Uri.parse('$apiBaseUrl/expenses/$id'));
   }
 
   List<dynamic> get filteredExpenses {
@@ -212,7 +213,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final response = await http.post(
-      Uri.parse('http://127.0.0.1:8000/expenses'),
+      Uri.parse('$apiBaseUrl/expenses'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'betrag': double.parse(betragController.text),
