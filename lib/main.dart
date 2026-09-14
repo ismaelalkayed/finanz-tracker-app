@@ -173,6 +173,15 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
                           title: Text(expense['kategorie']),
                           subtitle: Text(expense['notiz'] ?? ''),
                           trailing: Text('${expense['betrag']} €'),
+                          onTap: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => AddExpenseScreen(expense: expense)),
+                            );
+                            if (result == true) {
+                              fetchExpenses();
+                            }
+                          },
                         ),
                       );
                     },
@@ -197,7 +206,9 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
 }
 
 class AddExpenseScreen extends StatefulWidget {
-  const AddExpenseScreen({super.key});
+  final Map<String, dynamic>? expense; // null = neue Ausgabe, sonst wird bearbeitet
+
+  const AddExpenseScreen({super.key, this.expense});
 
   @override
   State<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -205,23 +216,41 @@ class AddExpenseScreen extends StatefulWidget {
 
 class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final _formKey = GlobalKey<FormState>();
-  final betragController = TextEditingController();
-  final kategorieController = TextEditingController();
-  final notizController = TextEditingController();
+  late final TextEditingController betragController;
+  late final TextEditingController kategorieController;
+  late final TextEditingController notizController;
+
+  bool get isEditing => widget.expense != null;
+
+  @override
+  void initState() {
+    super.initState();
+    betragController = TextEditingController(text: widget.expense?['betrag']?.toString() ?? '');
+    kategorieController = TextEditingController(text: widget.expense?['kategorie'] ?? '');
+    notizController = TextEditingController(text: widget.expense?['notiz'] ?? '');
+  }
 
   Future<void> submitExpense() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final response = await http.post(
-      Uri.parse('$apiBaseUrl/expenses'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'betrag': double.parse(betragController.text),
-        'kategorie': kategorieController.text,
-        'datum': DateTime.now().toIso8601String().substring(0, 10),
-        'notiz': notizController.text,
-      }),
-    );
+    final body = jsonEncode({
+      'betrag': double.parse(betragController.text),
+      'kategorie': kategorieController.text,
+      'datum': widget.expense?['datum'] ?? DateTime.now().toIso8601String().substring(0, 10),
+      'notiz': notizController.text,
+    });
+
+    final response = isEditing
+        ? await http.put(
+            Uri.parse('$apiBaseUrl/expenses/${widget.expense!['id']}'),
+            headers: {'Content-Type': 'application/json'},
+            body: body,
+          )
+        : await http.post(
+            Uri.parse('$apiBaseUrl/expenses'),
+            headers: {'Content-Type': 'application/json'},
+            body: body,
+          );
 
     if (response.statusCode == 200 && mounted) {
       Navigator.pop(context, true);
@@ -231,7 +260,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Neue Ausgabe')),
+      appBar: AppBar(title: Text(isEditing ? 'Ausgabe bearbeiten' : 'Neue Ausgabe')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
